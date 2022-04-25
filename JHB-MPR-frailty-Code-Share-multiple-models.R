@@ -229,7 +229,6 @@ Hmat <- function(thetav, surdata, k, q, disper, frailtystruc){
     Iab <- t(Iba)
     Ia <- t(X * c(wa)) %*% X
     
-    
     if (frailtystruc == "ScF") {
       Ibv <- t(X * c(wb)) %*% Z
       Iav <- t(X * c(wba)) %*% Z
@@ -252,96 +251,8 @@ Hmat <- function(thetav, surdata, k, q, disper, frailtystruc){
   H
 }
 
-
-## scale
-### Define the matrix of (-) second derivatives - the H matrix
-Hmat <- function(theta, surdata, k, sigma){
-  
-  beta <- theta[1:k]
-  alpha <- theta[(k + 1):(k*2)]
-  v <- theta[-(1:(k*2))]
-  ti <- surdata[, 1]
-  deltai <- surdata[, 2]
-  Xb <- as.matrix(surdata[, (3:(k + 2))])
-  Xa <- as.matrix(surdata[, ((k + 3):((k*2) + 2))])
-  
-  xbi <- Xb %*% beta
-  xai <- Xa %*% alpha
-  
-  Z <- model.matrix(~as.factor(surdata[,dim(surdata)[2]])+0)
-  zv <- Z %*% v
-  lambda <- exp(xbi)
-  eta <- lambda*exp(zv)
-  gamma <- exp(xai)
-  
-  W_b <- eta*(ti^gamma)
-  
-  I_b <- t(Xb * c(W_b)) %*% Xb
-  I_bv <- t(Xb * c(W_b)) %*% Z 
-  I_ba <- t(Xb * c(W_b*gamma*log(ti))) %*% Xa
-  
-  w_a <-  (gamma*log(ti))*((W_b * ((gamma*log(ti)) + 1)) - deltai)
-  
-  I_a <- t(Xa * c(w_a)) %*% Xa
-  I_ab <- t(I_ba)
-  I_av <- t(Xa * c(W_b*gamma*log(ti))) %*% Z
-  
-  I_v <- (t(Z * c(W_b)) %*% Z) + (diag(length(c(v)))/(sigma^2))
-  I_vb <- t(I_bv)
-  I_va <- t(I_av)
-  
-  H <- rbind(cbind(I_b, I_ba, I_bv),
-             cbind(I_ab, I_a, I_av),
-             cbind(I_vb, I_va, I_v))
-  
-  H
-}
-# shape
-### Define the matrix of (-) second derivatives - the H matrix
-Hmat <- function(theta, surdata, k, sigma){
-  
-  beta <- theta[1:k]
-  alpha <- theta[(k + 1):(k*2)]
-  v <- theta[-(1:(k*2))]
-  ti <- surdata[, 1]
-  deltai <- surdata[, 2]
-  Xb <- as.matrix(surdata[, (3:(k + 2))])
-  Xa <- as.matrix(surdata[, ((k + 3):((k*2) + 2))])
-  
-  xbi <- Xb %*% beta
-  xai <- Xa %*% alpha
-  
-  Z <- model.matrix(~as.factor(surdata[,dim(surdata)[2]])+0)
-  zv <- Z %*% v
-  lambda <- exp(xbi)
-  gamma <- exp(xai)*exp(zv)
-  
-  W_b <- lambda*(ti^gamma)
-  
-  I_b <- t(Xb * c(W_b)) %*% Xb
-  I_bv <- t(Xb *  c(W_b*gamma*log(ti))) %*% Z 
-  I_ba <- t(Xb * c(W_b*gamma*log(ti))) %*% Xa
-  
-  w_a <-  (gamma*log(ti))*((W_b * ((gamma*log(ti)) + 1)) - deltai)
-  
-  I_a <- t(Xa * c(w_a)) %*% Xa
-  I_ab <- t(I_ba)
-  I_av <- t(Xa * c(w_a)) %*% Z
-  
-  I_v <- (t(Z * c(w_a)) %*% Z) + (diag(length(c(v)))/(sigma^2))
-  
-  I_vb <- t(I_bv)
-  I_va <- t(I_av)
-  
-  H <- rbind(cbind(I_b, I_ba, I_bv),
-             cbind(I_ab, I_a, I_av),
-             cbind(I_vb, I_va, I_v))
-  
-  H
-}
-
 ## The vector of first derivatives
-Uvec <-  function(thetav, surdata, k, disper, frailtystruc){
+Uvec <-  function(thetav, surdata, k, q, disper, frailtystruc){
   
   tij <- surdata[, 1]
   deltai <- surdata[, 2]
@@ -481,78 +392,127 @@ pbvh <-  function(tran.disper, surdata, thetav, k, q, frailtystruc){
 ##         given in Section 2.4 of the paper.
 ## * Output: A list containing the estimates, the variance covariance matrix.
 
-hlikeNReq <- function(surdata, thetav.init, k, q, disper, frailtystruc, tol, 
-                      maxiter, halfmax){
-  
+# hlikeNReq <- function(surdata, thetav.init, k, q, disper, frailtystruc, tol, 
+#                       maxiter, halfmax){
+#   
+#   thetav <- thetav.init
+#   sigbet <- disper[1]
+#   sigalp <- disper[2]
+#   rho <- disper[3]
+#   
+#   p <- length(thetav)
+#   
+#   tij <- surdata[, 1]
+#   deltai <- surdata[, 2]
+#   X <- as.matrix(surdata[, 3:(k + 2)])
+#   Z <- model.matrix(~(surdata[,ncol(surdata)])+0)
+#   
+#   iter <- 0
+#   thetavold <- Inf
+#   
+#   while (max(abs(thetav - thetavold)) > tol & iter < maxiter) {
+#     
+#     thetavold <- thetav
+#     beta <- thetav[1:k]
+#     alpha <- thetav[(k + 1):(k*2)]
+#     vbi <- thetav[((k*2) + 1):((k*2) + q)]
+#     vai <- thetav[((k*2) + q + 1):p]
+#     
+#     zvbet <- Z %*% vbi
+#     zvalp <- Z %*% vai
+#     
+#     xbi <- X %*% beta
+#     xai <- X %*% alpha
+#     tau <- exp(xbi)
+#     gam <- exp(xai)
+#     
+#     eta.b <- tau*exp(zvbet)
+#     eta.a <- gam*exp(zvalp)
+#     
+#     # first derivatives
+#     ub <- deltai - (eta.b*(tij^eta.a))
+#     Ub <- t(X) %*% ub
+#     
+#     Uvb <- (t(Z) %*% ub) - ((1/(1 - (rho^2)))*((vbi/(sigbet^2)) - ((rho*vai)/(sigalp*sigbet))))
+#     
+#     ua <- (deltai*(1 + (eta.a*log(tij)))) - (eta.b*eta.a*(tij^eta.a)*log(tij))
+#     Ua <- t(X) %*% ua
+#     
+#     Uva <- (t(Z) %*% ua) - ((1/(1 - (rho^2)))*((vai/(sigalp^2)) - ((rho*vbi)/(sigalp*sigbet))))
+#     
+#     dhdthetav <- c(Ub, Ua, Uvb, Uva)
+#     
+#     # (-) second derivatives
+#     H <- Hmat(surdata = surdata, k = k, q = q, thetav = thetav, disper = disper,
+#               frailtystruc = frailtystruc)
+#     
+#     # solving for the difference between parameters
+#     pardiff <- solve(H,dhdthetav)
+#     
+#     hlikeold <- weibhlike(thetav = thetav, surdata = surdata, k = k, q = q, 
+#                           disper = disper, frailtystruc = frailtystruc)
+#     
+#     hlike <- -Inf
+#     
+#     j <- 0
+#     del <- 1
+#     
+#     # step halving when Netwon-Raphson step is too large (keep halving step 
+#     # until the h-likelihood is increased).
+#     while (hlike < hlikeold & j < halfmax) {
+#       
+#       del <- del/(2^j)
+#       
+#       thetav <- as.vector(thetavold + del*pardiff)
+#       
+#       hlike <- weibhlike(thetav = thetav, surdata = surdata, k = k, q = q, 
+#                          disper = disper, frailtystruc = frailtystruc)
+#       
+#       hlike <- ifelse(is.na(hlike), -Inf, hlike)
+#       j <- j + 1
+#     }
+#     iter <- iter + 1
+#   }
+#   # store quantities of interest
+#   vcovmat <- solve(Hmat(surdata = surdata, k = k, thetav = thetav, q = q,
+#                         disper = disper, frailtystruc = frailtystruc))
+#   #variance covariance matrix can be estimated later too
+#   
+#   list(thetav = thetav, vcovmat = vcovmat)
+# }
+
+## Newton Raphson to fit the h-likelihood
+hlikeNReq <- function(surdata, thetav.init, k, disper, maxiter, tol, halfmax, q, 
+                      frailtystruc){
   thetav <- thetav.init
-  sigbet <- disper[1]
-  sigalp <- disper[2]
-  rho <- disper[3]
-  
-  p <- length(thetav)
-  
-  tij <- surdata[, 1]
-  deltai <- surdata[, 2]
-  X <- as.matrix(surdata[, 3:(k + 2)])
-  Z <- model.matrix(~(surdata[,ncol(surdata)])+0)
-  
+  thetaold <- Inf
   iter <- 0
-  thetavold <- Inf
   
-  while (max(abs(thetav - thetavold)) > tol & iter < maxiter) {
+  while (max(abs(thetav - thetaold)) > tol & iter < maxiter) {
     
-    thetavold <- thetav
-    beta <- thetav[1:k]
-    alpha <- thetav[(k + 1):(k*2)]
-    vbi <- thetav[((k*2) + 1):((k*2) + q)]
-    vai <- thetav[((k*2) + q + 1):p]
-    
-    zvbet <- Z %*% vbi
-    zvalp <- Z %*% vai
-    
-    xbi <- X %*% beta
-    xai <- X %*% alpha
-    tau <- exp(xbi)
-    gam <- exp(xai)
-    
-    eta.b <- tau*exp(zvbet)
-    eta.a <- gam*exp(zvalp)
-    
+    thetaold <- thetav
     # first derivatives
-    ub <- deltai - (eta.b*(tij^eta.a))
-    Ub <- t(X) %*% ub
-    
-    Uvb <- (t(Z) %*% ub) - ((1/(1 - (rho^2)))*((vbi/(sigbet^2)) - ((rho*vai)/(sigalp*sigbet))))
-    
-    ua <- (deltai*(1 + (eta.a*log(tij)))) - (eta.b*eta.a*(tij^eta.a)*log(tij))
-    Ua <- t(X) %*% ua
-    
-    Uva <- (t(Z) %*% ua) - ((1/(1 - (rho^2)))*((vai/(sigalp^2)) - ((rho*vbi)/(sigalp*sigbet))))
-    
-    dhdthetav <- c(Ub, Ua, Uvb, Uva)
-    
+    U <- Uvec(surdata = surdata, k = k, q = q, thetav = thetav, disper = disper, 
+              frailtystruc = frailtystruc)
     # (-) second derivatives
     H <- Hmat(surdata = surdata, k = k, q = q, thetav = thetav, disper = disper,
               frailtystruc = frailtystruc)
-    
     # solving for the difference between parameters
-    pardiff <- solve(H,dhdthetav)
+    pardiff <- solve(H,U)
     
     hlikeold <- weibhlike(thetav = thetav, surdata = surdata, k = k, q = q, 
                           disper = disper, frailtystruc = frailtystruc)
-    
     hlike <- -Inf
-    
+
     j <- 0
     del <- 1
     
-    # step halving when Netwon-Raphson step is too large (keep halving step 
-    # until the h-likelihood is increased).
+    # step halving when Netwon-Raphson step is too large
     while (hlike < hlikeold & j < halfmax) {
       
       del <- del/(2^j)
       
-      thetav <- as.vector(thetavold + del*pardiff)
+      thetav <- as.vector(thetaold + del*pardiff)
       
       hlike <- weibhlike(thetav = thetav, surdata = surdata, k = k, q = q, 
                          disper = disper, frailtystruc = frailtystruc)
@@ -566,9 +526,9 @@ hlikeNReq <- function(surdata, thetav.init, k, q, disper, frailtystruc, tol,
   vcovmat <- solve(Hmat(surdata = surdata, k = k, thetav = thetav, q = q,
                         disper = disper, frailtystruc = frailtystruc))
   #variance covariance matrix can be estimated later too
-  
   list(thetav = thetav, vcovmat = vcovmat)
 }
+
 ################################################################################
 ## * Function: HLfit.algo
 ## * Description: Gives the overall model fitting algorithm, summarised in Section
