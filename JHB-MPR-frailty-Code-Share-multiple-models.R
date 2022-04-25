@@ -226,29 +226,116 @@ Hmat <- function(thetav, surdata, k, q, disper, frailtystruc){
     # (-) Second partial derivatives 
     Ib <- t(X * c(wb)) %*% X
     Iba <- t(X * c(wba)) %*% X
-    Ibv <- t(X * c(wb)) %*% Z
-    
     Iab <- t(Iba)
     Ia <- t(X * c(wa)) %*% X
-    Iav <- t(X * c(wba)) %*% Z
     
-    Ivb <- t(Ibvb)
-    Iva <- t(Iavb)
     
-    # I_av <- t(Xa * c(w_a)) %*% Z
-    # 
-    # I_v <- (t(Z * c(w_a)) %*% Z) + (diag(length(c(v)))/(sigma^2))
-    # 
-    # I_vb <- t(I_bv)
-    # I_va <- t(I_av)
+    if (frailtystruc == "ScF") {
+      Ibv <- t(X * c(wb)) %*% Z
+      Iav <- t(X * c(wba)) %*% Z
+      Iv <- (t(Z*c(wb)) %*% Z) + (diag(length(c(v)))/(sigma^2))
+      
+    } else if (frailtystruc == "ShF") {
+      Ibv <- t(X * c(wba)) %*% Z 
+      Iav <- t(X * c(wa)) %*% Z
+      Iv <- (t(Z * c(wa)) %*% Z) + (diag(length(c(v)))/(sigma^2))
+    }
     
-    Iv <- (t(Z*c(wb)) %*% Z) + (diag(length(c(v)))/(sigma^2))
-    
+    Ivb <- t(Ibv)
+    Iva <- t(Iav)
     H <- rbind(cbind(Ib, Iba, Ibv),
                cbind(Iab, Ia, Iav),
                cbind(Ivb, Iva, Iv))
     
   }
+  
+  H
+}
+
+
+## scale
+### Define the matrix of (-) second derivatives - the H matrix
+Hmat <- function(theta, surdata, k, sigma){
+  
+  beta <- theta[1:k]
+  alpha <- theta[(k + 1):(k*2)]
+  v <- theta[-(1:(k*2))]
+  ti <- surdata[, 1]
+  deltai <- surdata[, 2]
+  Xb <- as.matrix(surdata[, (3:(k + 2))])
+  Xa <- as.matrix(surdata[, ((k + 3):((k*2) + 2))])
+  
+  xbi <- Xb %*% beta
+  xai <- Xa %*% alpha
+  
+  Z <- model.matrix(~as.factor(surdata[,dim(surdata)[2]])+0)
+  zv <- Z %*% v
+  lambda <- exp(xbi)
+  eta <- lambda*exp(zv)
+  gamma <- exp(xai)
+  
+  W_b <- eta*(ti^gamma)
+  
+  I_b <- t(Xb * c(W_b)) %*% Xb
+  I_bv <- t(Xb * c(W_b)) %*% Z 
+  I_ba <- t(Xb * c(W_b*gamma*log(ti))) %*% Xa
+  
+  w_a <-  (gamma*log(ti))*((W_b * ((gamma*log(ti)) + 1)) - deltai)
+  
+  I_a <- t(Xa * c(w_a)) %*% Xa
+  I_ab <- t(I_ba)
+  I_av <- t(Xa * c(W_b*gamma*log(ti))) %*% Z
+  
+  I_v <- (t(Z * c(W_b)) %*% Z) + (diag(length(c(v)))/(sigma^2))
+  I_vb <- t(I_bv)
+  I_va <- t(I_av)
+  
+  H <- rbind(cbind(I_b, I_ba, I_bv),
+             cbind(I_ab, I_a, I_av),
+             cbind(I_vb, I_va, I_v))
+  
+  H
+}
+# shape
+### Define the matrix of (-) second derivatives - the H matrix
+Hmat <- function(theta, surdata, k, sigma){
+  
+  beta <- theta[1:k]
+  alpha <- theta[(k + 1):(k*2)]
+  v <- theta[-(1:(k*2))]
+  ti <- surdata[, 1]
+  deltai <- surdata[, 2]
+  Xb <- as.matrix(surdata[, (3:(k + 2))])
+  Xa <- as.matrix(surdata[, ((k + 3):((k*2) + 2))])
+  
+  xbi <- Xb %*% beta
+  xai <- Xa %*% alpha
+  
+  Z <- model.matrix(~as.factor(surdata[,dim(surdata)[2]])+0)
+  zv <- Z %*% v
+  lambda <- exp(xbi)
+  gamma <- exp(xai)*exp(zv)
+  
+  W_b <- lambda*(ti^gamma)
+  
+  I_b <- t(Xb * c(W_b)) %*% Xb
+  I_bv <- t(Xb *  c(W_b*gamma*log(ti))) %*% Z 
+  I_ba <- t(Xb * c(W_b*gamma*log(ti))) %*% Xa
+  
+  w_a <-  (gamma*log(ti))*((W_b * ((gamma*log(ti)) + 1)) - deltai)
+  
+  I_a <- t(Xa * c(w_a)) %*% Xa
+  I_ab <- t(I_ba)
+  I_av <- t(Xa * c(w_a)) %*% Z
+  
+  I_v <- (t(Z * c(w_a)) %*% Z) + (diag(length(c(v)))/(sigma^2))
+  
+  I_vb <- t(I_bv)
+  I_va <- t(I_av)
+  
+  H <- rbind(cbind(I_b, I_ba, I_bv),
+             cbind(I_ab, I_a, I_av),
+             cbind(I_vb, I_va, I_v))
   
   H
 }
