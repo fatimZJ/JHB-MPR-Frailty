@@ -234,6 +234,14 @@ Hmat <- function(thetav, surdata, k, q, disper, frailtystruc){
     
     Ivb <- t(Ibvb)
     Iva <- t(Iavb)
+    
+    # I_av <- t(Xa * c(w_a)) %*% Z
+    # 
+    # I_v <- (t(Z * c(w_a)) %*% Z) + (diag(length(c(v)))/(sigma^2))
+    # 
+    # I_vb <- t(I_bv)
+    # I_va <- t(I_av)
+    
     Iv <- (t(Z*c(wb)) %*% Z) + (diag(length(c(v)))/(sigma^2))
     
     H <- rbind(cbind(Ib, Iba, Ibv),
@@ -246,53 +254,83 @@ Hmat <- function(thetav, surdata, k, q, disper, frailtystruc){
 }
 
 ## The vector of first derivatives
-Uvec <-  function(theta, surdata, k, disper){
-  
-  sigbet <- disper[1]
-  sigalp <- disper[2]
-  rho <- disper[3]
-  
-  p <- length(theta)
-  dimx <- dim(surdata)[2]
+Uvec <-  function(thetav, surdata, k, disper, frailtystruc){
   
   tij <- surdata[, 1]
   deltai <- surdata[, 2]
-  Xb <- as.matrix(surdata[, 3:(k + 2)])
-  Xa <- as.matrix(surdata[, (k + 3):(dimx - 1)])
-  Z <- model.matrix(~as.factor(surdata[,dimx])+0)
-  q <- length(unique(as.factor(surdata[,dimx])))
+  X <- as.matrix(surdata[, 3:(k + 2)])
+  Z <- model.matrix(~(surdata[,ncol(surdata)])+0)
   
-  beta <- theta[1:k]
-  alpha <- theta[(k + 1):(k*2)]
-  vbi <- theta[((k*2) + 1):((k*2) + q)]
-  vai <- theta[((k*2) + q + 1):p]
+  beta <- thetav[1:k]
+  alpha <- thetav[(k + 1):(k*2)]
   
-  zv_bet <- Z %*% vbi
-  zv_alp <- Z %*% vai
-  
-  xbi <- Xb %*% beta
-  xai <- Xa %*% alpha
+  xbi <- X %*% beta
+  xai <- X %*% alpha
   tau <- exp(xbi)
   gam <- exp(xai)
   
-  eta_b <- tau*exp(zv_bet)
-  eta_a <- gam*exp(zv_alp)
-  
-  u_b <- deltai - (eta_b*(tij^eta_a))
-  U_b <- t(Xb) %*% u_b
-  
-  U_vb <- (t(Z) %*% u_b) - ((1/(1 - (rho^2)))*((vbi/(sigbet^2)) - ((rho*vai)/(sigalp*sigbet))))
-  
-  u_a <- (deltai*(1 + (eta_a*log(tij)))) - (eta_b*eta_a*(tij^eta_a)*log(tij))
-  U_a <- t(Xa) %*% u_a
-  
-  U_va <- (t(Z) %*% u_a) - ((1/(1 - (rho^2)))*((vai/(sigalp^2)) - ((rho*vbi)/(sigalp*sigbet))))
-  
-  U <- c(U_b, U_a, U_vb, U_va)
-  
+  if (frailtystruc == "BVNF") {
+    
+    p <- length(thetav)
+    sigbet <- disper[1]
+    sigalp <- disper[2]
+    rho <- disper[3]
+    
+    vbi <- thetav[((k*2) + 1):((k*2) + q)]
+    vai <- thetav[((k*2) + q + 1):p]
+    
+    zvbet <- Z %*% vbi
+    zvalp <- Z %*% vai
+    
+    xbi <- X %*% beta
+    xai <- X %*% alpha
+    tau <- exp(xbi)
+    gam <- exp(xai)
+    
+    eta.b <- tau*exp(zvbet)
+    eta.a <- gam*exp(zvalp)
+    
+    ub <- deltai - (eta.b*(tij^eta.a))
+    Ub <- t(X) %*% ub
+    
+    Uvb <- (t(Z) %*% ub) - ((1/(1 - (rho^2)))*((vbi/(sigbet^2)) - 
+                                                 ((rho*vai)/(sigalp*sigbet))))
+    
+    ua <- (deltai*(1 + (eta.a*log(tij)))) - (eta.b*eta.a*(tij^eta.a)*log(tij))
+    Ua <- t(X) %*% ua
+    
+    Uva <- (t(Z) %*% ua) - ((1/(1 - (rho^2)))*((vai/(sigalp^2)) - 
+                                                 ((rho*vbi)/(sigalp*sigbet))))
+    U <- c(Ub, Ua, Uvb, Uva)
+    
+  } else if  (frailtystruc == "ScF" | frailtystruc == "ShF") {
+    
+    sigma <- disper
+    v <- thetav[-(1:(k*2))]
+    zv <- Z %*% v
+    
+    if (frailtystruc == "ScF") {
+      eta.b <- tau*exp(zv) #frailty in the scale parameter 
+      eta.a <- gamma
+    } else if (frailtystruc == "ShF") {
+      eta.b <- tau
+      eta.a <- gamma*exp(zv) #frailty in the shape parameter 
+    }
+    
+    ub <- deltai - (eta.b*(tij^eta.a))
+    Ub <- t(X) %*% ub
+    ua <- (deltai*(1 + (eta.a*log(tij)))) - (eta.b*(tij^eta.a)*eta.a*log(tij)) 
+    Ua <- t(X) %*% ua
+    
+    if (frailtystruc == "ScF") {
+      Uv <- (t(Z) %*% ub) - (v/(sigma^2))
+    } else if (frailtystruc == "ShF") {
+      Uv <- (t(Z) %*% ua) - (v/(sigma^2))
+    }
+    U <- c(Ub, Ua, Uv)
+  }
   U
 }
-
 
 ################################################################################
 ## * Function: pbvh
@@ -489,9 +527,9 @@ HLfit.algo <- function(surdata, thetav.init, k, q, disper.init, frailtystruc,
     # transform the dispersion parameters to ensure the algorithm remains in the 
     # desired parameter space.
     if (frailtystruc == "BVNF") {
-    tran.rho <- log((1 + disper[3])/(1 - disper[3]))
-    
-    tran.disper <- c(log(disper[c(1,2)]), tran.rho)
+      tran.rho <- log((1 + disper[3])/(1 - disper[3]))
+      
+      tran.disper <- c(log(disper[c(1,2)]), tran.rho)
     } else if (frailtystruc == "ScF" | frailtystruc == "ShF") {
       tran.disper <- log(disper)
     }
@@ -501,13 +539,13 @@ HLfit.algo <- function(surdata, thetav.init, k, q, disper.init, frailtystruc,
                        hessian = TRUE)
     # bring dispersion parameters back to original scale
     if (frailtystruc == "BVNF") {
-    sigma <- exp(pbvh.nlmfit$est[c(1,2)])
-    
-    tran.rho <- pbvh.nlmfit$est[3]
-    
-    rho <- (2/(1 + exp(-tran.rho))) - 1
-    
-    lam <- c(thetav, sigma, rho)
+      sigma <- exp(pbvh.nlmfit$est[c(1,2)])
+      
+      tran.rho <- pbvh.nlmfit$est[3]
+      
+      rho <- (2/(1 + exp(-tran.rho))) - 1
+      
+      lam <- c(thetav, sigma, rho)
     } else if (frailtystruc == "ScF" | frailtystruc == "ShF") {
       sigma <- exp(pbvh.nlmfit$est)
       lam <- c(thetav, sigma)
