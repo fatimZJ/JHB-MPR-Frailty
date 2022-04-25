@@ -634,8 +634,8 @@ ests <- HLfit.algo(surdata = surdata, k = k, q = q, thetav.init = thetav.init, t
                    disper.init = disper.init, maxiter = maxiter, halfmax = halfmax,
                    frailtystruc = "BVNF")
 
-round(ests[[1]],3)
-round(ests[[2]],3)
-round(ests[[3]],3)
+round(ests[[1]],2)
+round(ests[[2]],2)
+round(ests[[3]],2)
 
 
