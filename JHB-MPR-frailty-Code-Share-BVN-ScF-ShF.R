@@ -467,7 +467,7 @@ hlikeNReq <- function(surdata, thetav.init, k, disper, maxiter, tol, halfmax, q,
     hlikeold <- weibhlike(thetav = thetav, surdata = surdata, k = k, q = q, 
                           disper = disper, frailtystruc = frailtystruc)
     hlike <- -Inf
-
+    
     j <- 0
     del <- 1
     
@@ -533,7 +533,7 @@ HLfit.algo <- function(surdata, thetav.init, k, q, disper.init, frailtystruc,
       thetav <- lam[1:((k*2) + q)]
       disper <- lam[-(1:((k*2) + q))]
     }
-   
+    
     # STEP 1: maximise h to obtain estimates of the fixed and random effects 
     hlike.fit <- hlikeNReq(surdata = surdata, thetav.init = thetav, 
                            k = k, q = q, disper = disper, frailtystruc = frailtystruc,
@@ -619,93 +619,3 @@ HLfit.algo <- function(surdata, thetav.init, k, q, disper.init, frailtystruc,
   list(fixed.effects = fixed.effects, dispersion.params = dispersion.params,
        random.effects = random.effects, iter = iter)
 }
-################################################################################
-#                                                                              #
-# Application to the Bladder Cancer dataset                                    #
-#                                                                              #
-################################################################################
-
-## loading the dataset
-data(bladder0, package = "frailtyHL")
-
-str(bladder0)
-## some data manipulation 
-bladder <- bladder0[(bladder0$Surtime != 0), ]
-
-bladder[,c("Center", "Chemo", "Tustat")] <- lapply(bladder[,c("Center", "Chemo",
-                                                              "Tustat")], factor)
-str(bladder)
-# checking for NAs
-apply(bladder, 2, function(x) sum(is.na(x)))
-
-# changing the survival time from days to year
-bladder$Surtime <- bladder$Surtime/365
-
-# model matrix
-X <- model.matrix(~Chemo + Tustat, data = bladder) 
-
-# defining the data.frame that gets passed into the model fitting function- first
-# column is the survival time, the second is the censoring indicator, followed by 
-# the covariates, and the last column corresponds to the centre,
-
-surdata <- data.frame(bladder$Surtime, bladder$Status, X, as.factor(bladder$Center))
-
-# defining other parameters 
-k <- dim(X)[2]
-q <- nlevels(bladder$Center)
-maxiter <- 5000
-halfmax <- 500
-tol <- 1e-4
-
-## generating starting values 
-ti <- surdata[,1]
-deltai <- surdata[,2]
-lam.hat <- sum(deltai)/sum(ti)
-
-bet0 <- log(lam.hat)
-alp0 <- 0.01
-init0 <- c(bet0, alp0)
-
-# fitting basic no covariate Weibull (to get starting values later)
-
-nocov.weibfit <- mpr(Surv(Surtime,Status)~list(~1,~1), data = bladder, init = init0)
-
-init <- c(nocov.weibfit$coefficients$beta, rep(0.01, (k - 1)), 
-          nocov.weibfit$coefficients$alpha, rep(0.01, (k - 1)))
-
-# fitting a weibull with covariates
-
-weib.fit <- mpr(Surv(Surtime, Status)~list(~Chemo + Tustat,~Chemo + Tustat), data = bladder, 
-                init = init)
-
-thetav.init <- c(weib.fit$coefficients$beta, weib.fit$coefficients$alpha, 
-                 rep(0.01, (q*2)))
-disper.init <- c(0.1, 0.1, -0.1)
-
-##Fitting the random effects model
-ests <- NA
-
-ests <- HLfit.algo(surdata = surdata, k = k, q = q, thetav.init = thetav.init, tol = tol,
-                   disper.init = disper.init, maxiter = maxiter, halfmax = halfmax,
-                   frailtystruc = "BVNF")
-
-round(ests[[1]],2)
-round(ests[[2]],2)
-round(ests[[3]],2)
-
-thetav.init <- c(weib.fit$coefficients$beta, weib.fit$coefficients$alpha, 
-                 rep(0.01, q))
-disper.init <- 0.1
-
-##Fitting the random effects model
-ests <- NA
-
-ests <- HLfit.algo(surdata = surdata, k = k, q = q, thetav.init = thetav.init, tol = tol,
-                   disper.init = disper.init, maxiter = maxiter, halfmax = halfmax,
-                   frailtystruc = "ShF")
-
-round(ests[[1]],2)
-round(ests[[2]],2)
-round(ests[[3]],2)
-
-
