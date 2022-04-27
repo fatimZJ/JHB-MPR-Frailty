@@ -184,7 +184,12 @@ Uvec <-  function(thetav, surdata, k, q, disper, frailtystruc){
 ##              and the remaining columns correspond to covariates, with the last 
 ##              column corresponding to the centre,
 ##              k = number of scale (or shape) covariates plus one (for intercept), 
-##              Disper = the frailty dispersion parameters
+##              Disper = the frailty dispersion parameters,
+##              frailtystruc = parameter specifying the desired frailty structure-
+##              frailtystruc = "BVNF" corresponds to the model with bivariate 
+##              normal frailties, frailtystruc = "ScF" corresponds to the model
+##              with scale frailty and frailtystruc = "ShF" corresponds to the 
+##              model with shape frailty.
 ## * Note: This function is used as part of other functions. 
 
 Hmat <- function(thetav, surdata, k, q, disper, frailtystruc){
@@ -297,7 +302,8 @@ Hmat <- function(thetav, surdata, k, q, disper, frailtystruc){
 }
 ################################################################################
 ## * Function: pbvh
-## * Description: Defines the adjusted profile likelihood for
+## * Description: Defines the adjusted profile likelihood which estimates the 
+##                restrcited profile likelihood for the dispersion parameter(s).
 ## * Arguments: tran.disper = transformed frailty dispersion parameters
 ##              thetav = a vector of fixed and random effects, 
 ##              surdata = a data.frame containing survival data where the first 
@@ -306,6 +312,11 @@ Hmat <- function(thetav, surdata, k, q, disper, frailtystruc){
 ##              column corresponding to the centre,
 ##              k = number of scale (or shape) covariates plus one (for intercept),
 ##              q = the number of clusters or centres,
+##              frailtystruc = parameter specifying the desired frailty structure-
+##              frailtystruc = "BVNF" corresponds to the model with bivariate 
+##              normal frailties, frailtystruc = "ScF" corresponds to the model
+##              with scale frailty and frailtystruc = "ShF" corresponds to the 
+##              model with shape frailty.
 ## * Note: This function is used in the estimation of the dispersion parameters  
 ##         (using nlm for the maximisation).
 
@@ -434,14 +445,12 @@ hlikeNReq <- function(surdata, thetav.init, k, disper, maxiter, tol, halfmax, q,
 ##         summarised in Section 2.4 of the paper.
 ## * Output: A list containing estimates of the different sets of parameters, 
 ##           their standard errors and the number of iterations the algorithm took.
-
 HLfit.algo <- function(surdata, thetav.init, disper.init, frailtystruc, k, q,
                        tol = 1e-4, maxiter = 5000, halfmax = 500){
   # input validation # must add checks for other parameters
   if (!frailtystruc %in% c("BVNF", "ScF", "ShF" )) {
     stop("Must specify the fariltystruc to be one of BVNF, ScF or ShF.")
   }
-
   # extract initial values
   lam <- c(thetav.init, disper.init)
   lamold <- Inf
@@ -458,12 +467,11 @@ HLfit.algo <- function(surdata, thetav.init, disper.init, frailtystruc, k, q,
       thetav <- lam[1:((k*2) + q)]
       disper <- lam[-(1:((k*2) + q))]
     }
-    
+  
     # STEP 1: maximise h to obtain estimates of the fixed and random effects 
     hlike.fit <- hlikeNReq(surdata = surdata, thetav.init = thetav, 
                            k = k, q = q, disper = disper, frailtystruc = frailtystruc,
                            maxiter = maxiter, tol = tol, halfmax = halfmax)
-    
     # update thetav
     thetav <- hlike.fit$thetav
     # transform the dispersion parameters to ensure the algorithm remains in the 
@@ -504,11 +512,9 @@ HLfit.algo <- function(surdata, thetav.init, disper.init, frailtystruc, k, q,
                          SE.thetav[(k + 1):(k*2)])
   colnames(fixed.effects) <- c("coef.b", "se.b","coef.a", "se.a")
   
-  ######## different for differ models
   if (frailtystruc == "BVNF") {
     # using the delta method to get the standard errors of the dispersion parameters
     # in their original scale
-    
     SE.sig.beta <-  SE.disper[1] * sigma[1]
     SE.sig.alpha <- SE.disper[2] * sigma[2]
     SE.rho <- SE.disper[3] * ((2*exp(-tran.rho))/((1 + exp(-tran.rho))^2))
@@ -534,11 +540,8 @@ HLfit.algo <- function(surdata, thetav.init, disper.init, frailtystruc, k, q,
     } else if (frailtystruc == "ShF") {
       colnames(random.effects) <- c("vai", "se.vai")
       rownames(dispersion.params) <- c("sigma.a")
-      
     }
-    
   }
-  
   colnames(dispersion.params) <- c("estimate", "se")
   rownames(random.effects) <- paste0("centre ", levels(surdata[, ncol(surdata)]))
   list(fixed.effects = fixed.effects, dispersion.params = dispersion.params,
