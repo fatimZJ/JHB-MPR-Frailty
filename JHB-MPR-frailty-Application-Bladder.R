@@ -1,5 +1,25 @@
 ################################################################################
 #                                                                              #
+# JHB-MPR-frailty-Code-Share                                                   #
+#                                                                              #
+################################################################################
+
+# This R script file implements the h-likelihood procedure of 
+# "Multi-Parameter Regression Survival Modelling with Random Effects" 
+
+# The necessary functions are sourced from the github repository 
+# "https://github.com/fatimZJ/JHB-MPR-Frailty". A description of the purpose of 
+# each function is provided.
+
+# The BVNF model (model assuming bivariate normal frailties), ScF model (model 
+# assuming scale frailty) and ShF model (model assuming shape frailty) are 
+# fitted to the Bladder Cancer dataset analysed in Section 4.3 of the paper.
+
+# The code runs cleanly sequentially (and requires installing the devtools, 
+# frailtyHL and mpr pacakges). 
+
+################################################################################
+#                                                                              #
 # Application to the Bladder Cancer dataset                                    #
 #                                                                              #
 ################################################################################
