@@ -4,21 +4,8 @@
 #                                                                              #
 ################################################################################
 
-# This R script file implements the h-likelihood procedure of 
+# This R script file implements the h-likelihood procedures of 
 # "Multi-Parameter Regression Survival Modelling with Random Effects" 
-
-# The models are fitted to the Bladder Cancer dataset analysed in Section 4.3 
-# of the paper.
-
-# The necessary functions are defined first along with detailed explanations of 
-# the purpose of each one of them. Then, these functions are applied to the said 
-# dataset.
-
-# The code runs cleanly sequentially (and requires installing the frailtyHL and 
-# mpr pacakges). 
-
-library(frailtyHL)
-library(mpr)
 
 ################################################################################
 #                                                                              #
@@ -34,14 +21,14 @@ library(mpr)
 ##              column corresponding to the centre,
 ##              k = number of scale (or shape) covariates plus one (for intercept), 
 ##              Disper = the frailty dispersion parameters
+##              frailtystruc = parameter specifying the desired frailty structure-
+##              frailtystruc = "BVNF" corresponds to the model with bivariate 
+##              normal frailties, frailtystruc = "ScF" corresponds to the model
+##              with scale frailty and frailtystruc = "ShF" corresponds to the 
+##              model with shape frailty.
 ## * Note: This function is used as part of other functions. 
 
 weibhlike <- function(thetav, surdata, k, q, disper, frailtystruc) {
-  
-  # if (!frailtystruc %in% c("BVNF", "ScF", "ShF" )){#(all(frailtystruc != c("BVNF", "ScF", "ShF" ))) {
-  #   stop("Must specify the fariltystruc to be one of BVNF, ScF or ShF.")
-  # } #  set it in the overall algorithm
-  # 
   p <- length(thetav)
   
   tij <- surdata[, 1]
@@ -97,6 +84,95 @@ weibhlike <- function(thetav, surdata, k, q, disper, frailtystruc) {
   hlike <- hlike1 + hlike2
   
   hlike
+}
+################################################################################
+## * Function: Uvec
+## * Description: Computes the first derivatives of the h-likelihood function.
+## * Arguments: surdata = a data.frame containing survival data where the first 
+##              column is the survival time, the second is the censoring indicator, 
+##              and the remaining columns correspond to covariates, with the last 
+##              column corresponding to the centre,
+##              thetav = a vector of the fixed and random effects, 
+##              k = number of scale (or shape) covariates plus one (for intercept), 
+##              q = the number of clusters or centres,
+##              disper = frailty dispersion parameters,
+##              frailtystruc = parameter specifying the desired frailty structure-
+##              frailtystruc = "BVNF" corresponds to the model with bivariate 
+##              normal frailties, frailtystruc = "ScF" corresponds to the model
+##              with scale frailty and frailtystruc = "ShF" corresponds to the 
+##              model with shape frailty.
+## * Output: A vector of first order derivatives.
+Uvec <-  function(thetav, surdata, k, q, disper, frailtystruc){
+  
+  tij <- surdata[, 1]
+  deltai <- surdata[, 2]
+  X <- as.matrix(surdata[, 3:(k + 2)])
+  Z <- model.matrix(~(surdata[,ncol(surdata)])+0)
+  
+  beta <- thetav[1:k]
+  alpha <- thetav[(k + 1):(k*2)]
+  
+  xbi <- X %*% beta
+  xai <- X %*% alpha
+  tau <- exp(xbi)
+  gam <- exp(xai)
+  
+  if (frailtystruc == "BVNF") {
+    
+    p <- length(thetav)
+    sigbet <- disper[1]
+    sigalp <- disper[2]
+    rho <- disper[3]
+    
+    vbi <- thetav[((k*2) + 1):((k*2) + q)]
+    vai <- thetav[((k*2) + q + 1):p]
+    
+    zvbet <- Z %*% vbi
+    zvalp <- Z %*% vai
+    
+    eta.b <- tau*exp(zvbet)
+    eta.a <- gam*exp(zvalp)
+    
+    ub <- deltai - (eta.b*(tij^eta.a))
+    Ub <- t(X) %*% ub
+    
+    Uvb <- (t(Z) %*% ub) - ((1/(1 - (rho^2)))*((vbi/(sigbet^2)) - 
+                                                 ((rho*vai)/(sigalp*sigbet))))
+    
+    ua <- (deltai*(1 + (eta.a*log(tij)))) - (eta.b*eta.a*(tij^eta.a)*log(tij))
+    Ua <- t(X) %*% ua
+    
+    Uva <- (t(Z) %*% ua) - ((1/(1 - (rho^2)))*((vai/(sigalp^2)) - 
+                                                 ((rho*vbi)/(sigalp*sigbet))))
+    U <- c(Ub, Ua, Uvb, Uva)
+    
+  } else if  (frailtystruc == "ScF" | frailtystruc == "ShF") {
+    
+    sigma <- disper
+    v <- thetav[-(1:(k*2))]
+    zv <- Z %*% v
+    
+    if (frailtystruc == "ScF") {
+      eta.b <- tau*exp(zv) #frailty in the scale parameter 
+      eta.a <- gam
+    } else if (frailtystruc == "ShF") {
+      eta.b <- tau
+      eta.a <- gam*exp(zv) #frailty in the shape parameter 
+    }
+    
+    ub <- deltai - (eta.b*(tij^eta.a))
+    Ub <- t(X) %*% ub
+    ua <- (deltai*(1 + (eta.a*log(tij)))) - (eta.b*(tij^eta.a)*eta.a*log(tij)) 
+    Ua <- t(X) %*% ua
+    
+    if (frailtystruc == "ScF") {
+      Uv <- (t(Z) %*% ub) - (v/(sigma^2))
+    } else if (frailtystruc == "ShF") {
+      Uv <- (t(Z) %*% ua) - (v/(sigma^2))
+    }
+    U <- c(Ub, Ua, Uv)
+  }
+  U
 }
 ################################################################################
 ## * Function: Hmat
@@ -219,81 +295,6 @@ Hmat <- function(thetav, surdata, k, q, disper, frailtystruc){
   
   H
 }
-
-## The vector of first derivatives
-Uvec <-  function(thetav, surdata, k, q, disper, frailtystruc){
-  
-  tij <- surdata[, 1]
-  deltai <- surdata[, 2]
-  X <- as.matrix(surdata[, 3:(k + 2)])
-  Z <- model.matrix(~(surdata[,ncol(surdata)])+0)
-  
-  beta <- thetav[1:k]
-  alpha <- thetav[(k + 1):(k*2)]
-  
-  xbi <- X %*% beta
-  xai <- X %*% alpha
-  tau <- exp(xbi)
-  gam <- exp(xai)
-  
-  if (frailtystruc == "BVNF") {
-    
-    p <- length(thetav)
-    sigbet <- disper[1]
-    sigalp <- disper[2]
-    rho <- disper[3]
-    
-    vbi <- thetav[((k*2) + 1):((k*2) + q)]
-    vai <- thetav[((k*2) + q + 1):p]
-    
-    zvbet <- Z %*% vbi
-    zvalp <- Z %*% vai
-    
-    eta.b <- tau*exp(zvbet)
-    eta.a <- gam*exp(zvalp)
-    
-    ub <- deltai - (eta.b*(tij^eta.a))
-    Ub <- t(X) %*% ub
-    
-    Uvb <- (t(Z) %*% ub) - ((1/(1 - (rho^2)))*((vbi/(sigbet^2)) - 
-                                                 ((rho*vai)/(sigalp*sigbet))))
-    
-    ua <- (deltai*(1 + (eta.a*log(tij)))) - (eta.b*eta.a*(tij^eta.a)*log(tij))
-    Ua <- t(X) %*% ua
-    
-    Uva <- (t(Z) %*% ua) - ((1/(1 - (rho^2)))*((vai/(sigalp^2)) - 
-                                                 ((rho*vbi)/(sigalp*sigbet))))
-    U <- c(Ub, Ua, Uvb, Uva)
-    
-  } else if  (frailtystruc == "ScF" | frailtystruc == "ShF") {
-    
-    sigma <- disper
-    v <- thetav[-(1:(k*2))]
-    zv <- Z %*% v
-    
-    if (frailtystruc == "ScF") {
-      eta.b <- tau*exp(zv) #frailty in the scale parameter 
-      eta.a <- gam
-    } else if (frailtystruc == "ShF") {
-      eta.b <- tau
-      eta.a <- gam*exp(zv) #frailty in the shape parameter 
-    }
-    
-    ub <- deltai - (eta.b*(tij^eta.a))
-    Ub <- t(X) %*% ub
-    ua <- (deltai*(1 + (eta.a*log(tij)))) - (eta.b*(tij^eta.a)*eta.a*log(tij)) 
-    Ua <- t(X) %*% ua
-    
-    if (frailtystruc == "ScF") {
-      Uv <- (t(Z) %*% ub) - (v/(sigma^2))
-    } else if (frailtystruc == "ShF") {
-      Uv <- (t(Z) %*% ua) - (v/(sigma^2))
-    }
-    U <- c(Ub, Ua, Uv)
-  }
-  U
-}
-
 ################################################################################
 ## * Function: pbvh
 ## * Description: Defines the adjusted profile likelihood for
@@ -352,100 +353,15 @@ pbvh <-  function(tran.disper, surdata, thetav, k, q, frailtystruc){
 ##              algorithm is allowed to take,
 ##              halfmax = the maximum number of step-halving steps carried out in 
 ##              the algorithm. 
+##              frailtystruc = parameter specifying the desired frailty structure-
+##              frailtystruc = "BVNF" corresponds to the model with bivariate 
+##              normal frailties, frailtystruc = "ScF" corresponds to the model
+##              with scale frailty and frailtystruc = "ShF" corresponds to the 
+##              model with shape frailty.
 ## * Note: This function implements the first step of the fitting algorithm 
 ##         given in Section 2.4 of the paper.
 ## * Output: A list containing the estimates, the variance covariance matrix.
 
-# hlikeNReq <- function(surdata, thetav.init, k, q, disper, frailtystruc, tol, 
-#                       maxiter, halfmax){
-#   
-#   thetav <- thetav.init
-#   sigbet <- disper[1]
-#   sigalp <- disper[2]
-#   rho <- disper[3]
-#   
-#   p <- length(thetav)
-#   
-#   tij <- surdata[, 1]
-#   deltai <- surdata[, 2]
-#   X <- as.matrix(surdata[, 3:(k + 2)])
-#   Z <- model.matrix(~(surdata[,ncol(surdata)])+0)
-#   
-#   iter <- 0
-#   thetavold <- Inf
-#   
-#   while (max(abs(thetav - thetavold)) > tol & iter < maxiter) {
-#     
-#     thetavold <- thetav
-#     beta <- thetav[1:k]
-#     alpha <- thetav[(k + 1):(k*2)]
-#     vbi <- thetav[((k*2) + 1):((k*2) + q)]
-#     vai <- thetav[((k*2) + q + 1):p]
-#     
-#     zvbet <- Z %*% vbi
-#     zvalp <- Z %*% vai
-#     
-#     xbi <- X %*% beta
-#     xai <- X %*% alpha
-#     tau <- exp(xbi)
-#     gam <- exp(xai)
-#     
-#     eta.b <- tau*exp(zvbet)
-#     eta.a <- gam*exp(zvalp)
-#     
-#     # first derivatives
-#     ub <- deltai - (eta.b*(tij^eta.a))
-#     Ub <- t(X) %*% ub
-#     
-#     Uvb <- (t(Z) %*% ub) - ((1/(1 - (rho^2)))*((vbi/(sigbet^2)) - ((rho*vai)/(sigalp*sigbet))))
-#     
-#     ua <- (deltai*(1 + (eta.a*log(tij)))) - (eta.b*eta.a*(tij^eta.a)*log(tij))
-#     Ua <- t(X) %*% ua
-#     
-#     Uva <- (t(Z) %*% ua) - ((1/(1 - (rho^2)))*((vai/(sigalp^2)) - ((rho*vbi)/(sigalp*sigbet))))
-#     
-#     dhdthetav <- c(Ub, Ua, Uvb, Uva)
-#     
-#     # (-) second derivatives
-#     H <- Hmat(surdata = surdata, k = k, q = q, thetav = thetav, disper = disper,
-#               frailtystruc = frailtystruc)
-#     
-#     # solving for the difference between parameters
-#     pardiff <- solve(H,dhdthetav)
-#     
-#     hlikeold <- weibhlike(thetav = thetav, surdata = surdata, k = k, q = q, 
-#                           disper = disper, frailtystruc = frailtystruc)
-#     
-#     hlike <- -Inf
-#     
-#     j <- 0
-#     del <- 1
-#     
-#     # step halving when Netwon-Raphson step is too large (keep halving step 
-#     # until the h-likelihood is increased).
-#     while (hlike < hlikeold & j < halfmax) {
-#       
-#       del <- del/(2^j)
-#       
-#       thetav <- as.vector(thetavold + del*pardiff)
-#       
-#       hlike <- weibhlike(thetav = thetav, surdata = surdata, k = k, q = q, 
-#                          disper = disper, frailtystruc = frailtystruc)
-#       
-#       hlike <- ifelse(is.na(hlike), -Inf, hlike)
-#       j <- j + 1
-#     }
-#     iter <- iter + 1
-#   }
-#   # store quantities of interest
-#   vcovmat <- solve(Hmat(surdata = surdata, k = k, thetav = thetav, q = q,
-#                         disper = disper, frailtystruc = frailtystruc))
-#   #variance covariance matrix can be estimated later too
-#   
-#   list(thetav = thetav, vcovmat = vcovmat)
-# }
-
-## Newton Raphson to fit the h-likelihood
 hlikeNReq <- function(surdata, thetav.init, k, disper, maxiter, tol, halfmax, q, 
                       frailtystruc){
   thetav <- thetav.init
@@ -470,7 +386,6 @@ hlikeNReq <- function(surdata, thetav.init, k, disper, maxiter, tol, halfmax, q,
     
     j <- 0
     del <- 1
-    
     # step halving when Netwon-Raphson step is too large
     while (hlike < hlikeold & j < halfmax) {
       
@@ -489,7 +404,7 @@ hlikeNReq <- function(surdata, thetav.init, k, disper, maxiter, tol, halfmax, q,
   # store quantities of interest
   vcovmat <- solve(Hmat(surdata = surdata, k = k, thetav = thetav, q = q,
                         disper = disper, frailtystruc = frailtystruc))
-  #variance covariance matrix can be estimated later too
+  #variance covariance matrix can be estimated later too- more efficient?
   list(thetav = thetav, vcovmat = vcovmat)
 }
 
@@ -510,13 +425,23 @@ hlikeNReq <- function(surdata, thetav.init, k, disper, maxiter, tol, halfmax, q,
 ##              algorithm is allowed to take,
 ##              halfmax = the maximum number of step-halving steps carried out in 
 ##              the algorithm. 
+##              frailtystruc = parameter specifying the desired frailty structure-
+##              frailtystruc = "BVNF" corresponds to the model with bivariate 
+##              normal frailties, frailtystruc = "ScF" corresponds to the model
+##              with scale frailty and frailtystruc = "ShF" corresponds to the 
+##              model with shape frailty.
 ## * Note: This function implements the overall h-likelihood fitting algorithm 
 ##         summarised in Section 2.4 of the paper.
 ## * Output: A list containing estimates of the different sets of parameters, 
 ##           their standard errors and the number of iterations the algorithm took.
 
-HLfit.algo <- function(surdata, thetav.init, k, q, disper.init, frailtystruc,
-                       tol, maxiter, halfmax){
+HLfit.algo <- function(surdata, thetav.init, disper.init, frailtystruc, k, q,
+                       tol = 1e-4, maxiter = 5000, halfmax = 500){
+  # input validation # must add checks for other parameters
+  if (!frailtystruc %in% c("BVNF", "ScF", "ShF" )) {
+    stop("Must specify the fariltystruc to be one of BVNF, ScF or ShF.")
+  }
+
   # extract initial values
   lam <- c(thetav.init, disper.init)
   lamold <- Inf
