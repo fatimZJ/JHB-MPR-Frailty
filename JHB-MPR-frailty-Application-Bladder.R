@@ -3,10 +3,14 @@
 # Application to the Bladder Cancer dataset                                    #
 #                                                                              #
 ################################################################################
-
-## loading required packages 
+## loading required packages
+library(devtools)
 library(frailtyHL)
 library(mpr)
+
+## sources the functions from github
+SourceURL <- "https://raw.githubusercontent.com/fatimZJ/JHB-MPR-Frailty/main/JHB-MPR-frailty-Code-Share-BVN-ScF-ShF.R"
+source_url(SourceURL)
 
 ## loading the dataset
 data(bladder0, package = "frailtyHL")
