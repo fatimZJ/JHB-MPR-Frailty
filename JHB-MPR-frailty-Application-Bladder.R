@@ -76,9 +76,6 @@ data <- data.frame(bladder$Surtime, bladder$Status,
 ## some constants that are needed
 k <- dim(X)[2]
 q <- nlevels(bladder$Center)
-maxiter <- 5000
-halfmax <- 500
-tol <- 1e-4
 
 ################ setting initial values
 
@@ -116,8 +113,7 @@ disper_init <- c(0.1, 0.1, -0.1)
 BVNF <- NA
 
 BVNF <- mpr_frailty(data = data, frailty = "BVNF", k = k, q = q,
-                    thetav_init = thetav_init, disper_init = disper_init,  
-                    tol = tol, maxiter = maxiter, halfmax = halfmax)
+                    thetav_init = thetav_init, disper_init = disper_init)
 
 ## note that ".b" indicates the scale (beta) coefficients and ".a" indicates
 ## the shape (alpha) coefficients
@@ -138,9 +134,7 @@ disper_init <- 0.1
 ScF <- NA
 
 ScF <- mpr_frailty(data = data, frailty = "ScF", k = k, q = q, 
-                  thetav_init = thetav_init, disper_init = disper_init,
-                  tol = tol, maxiter = maxiter,  halfmax = halfmax)
-
+                  thetav_init = thetav_init, disper_init = disper_init)
 
 round(ScF[[1]],2)
 round(ScF[[2]],2)
@@ -152,9 +146,7 @@ round(ScF[[3]],2)
 ShF <- NA
 
 ShF <- mpr_frailty(data = data, frailty = "ShF", k = k, q = q, 
-                   thetav_init = thetav_init, disper_init = disper_init, 
-                   tol = tol, maxiter = maxiter, halfmax = halfmax)
-
+                   thetav_init = thetav_init, disper_init = disper_init)
 
 round(ShF[[1]],2)
 round(ShF[[2]],2)
