@@ -115,7 +115,7 @@ disper_init <- c(0.1, 0.1, -0.1)
 
 BVNF <- NA
 
-BVNF <- mpr_frailty(data = surdata, frailty = "BVNF", k = k, q = q,
+BVNF <- mpr_frailty(data = data, frailty = "BVNF", k = k, q = q,
                     thetav_init = thetav_init, disper_init = disper_init,  
                     tol = tol, maxiter = maxiter, halfmax = halfmax)
 
@@ -137,7 +137,7 @@ disper_init <- 0.1
 
 ScF <- NA
 
-ScF <- mpr_frailty(data = surdata, frailty = "ScF", k = k, q = q, 
+ScF <- mpr_frailty(data = data, frailty = "ScF", k = k, q = q, 
                   thetav_init = thetav_init, disper_init = disper_init,
                   tol = tol, maxiter = maxiter,  halfmax = halfmax)
 
@@ -151,7 +151,7 @@ round(ScF[[3]],2)
 
 ShF <- NA
 
-ShF <- mpr_frailty(data = surdata, frailty = "ShF", k = k, q = q, 
+ShF <- mpr_frailty(data = data, frailty = "ShF", k = k, q = q, 
                    thetav_init = thetav_init, disper_init = disper_init, 
                    tol = tol, maxiter = maxiter, halfmax = halfmax)
 
